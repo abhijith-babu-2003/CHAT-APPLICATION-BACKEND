@@ -1,4 +1,5 @@
-import User from "../models/user.js";  // Fixed import path
+// controllers/messageController.js
+import User from "../models/user.js";
 import Message from '../models/message.js';
 import cloudinary from "../lib/cloudinary.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
@@ -37,6 +38,8 @@ export const sendMessage = async (req, res) => {
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
 
+    console.log("📨 Sending message from:", senderId, "to:", receiverId);
+
     let imageUrl;
     if (image) {
       const uploadResponse = await cloudinary.uploader.upload(image);
@@ -51,10 +54,24 @@ export const sendMessage = async (req, res) => {
     });
     
     await newMessage.save();
+    console.log("💾 Message saved to database:", newMessage._id);
 
-    const receiverSocketId = getReceiverSocketId(receiverId);  // Fixed typo
+    // Get receiver's socket ID
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    console.log("🎯 Receiver socket ID:", receiverSocketId);
+
     if (receiverSocketId) {
+      console.log("📤 Emitting newMessage to receiver:", receiverSocketId);
       io.to(receiverSocketId).emit("newMessage", newMessage);
+    } else {
+      console.log("❌ Receiver not online or socket ID not found");
+    }
+
+    // Also emit to sender for real-time update
+    const senderSocketId = getReceiverSocketId(senderId);
+    if (senderSocketId) {
+      console.log("📤 Emitting newMessage to sender:", senderSocketId);
+      io.to(senderSocketId).emit("newMessage", newMessage);
     }
 
     res.status(201).json(newMessage);
